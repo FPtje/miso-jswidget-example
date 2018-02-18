@@ -3,6 +3,11 @@
   Elegantly embedding arbitrary Javascript widgets in Miso.
 </p>
 
+## Try it live!
+https://fptje.github.io/miso-jswidget-example/
+
+## About
+
 This example shows how to deeply integrate a javascript widget into your [Miso](https://haskell-miso.org/) app, such that:
 
 - you can listen to custom events defined by the widget's library;
@@ -23,9 +28,6 @@ The example consists of two Haskell files: [`Main.hs`](src/Main.hs) and [`Flatpi
 - destroy the widget and cleans up any callbacks when the DOM element it was attached to disappears.
 
 Comments in the code explain the details. Go check it out!
-
-## Try it live!
-https://fptje.github.io/miso-jswidget-example/
 
 ## Building the example
 This example is built using [Nix](https://nixos.org/nix/).
