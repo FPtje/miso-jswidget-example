@@ -3,6 +3,12 @@
   Elegantly embedding arbitrary Javascript widgets in Miso.
 </p>
 
+## Note:
+Currently running off a fork of Miso, until the methods in this example have been fleshed out. Follow its progress here:
+https://github.com/dmjio/miso/pull/362
+
+Also currently incompatible with Miso's isomorphism feature.
+
 ## Try it live!
 https://fptje.github.io/miso-jswidget-example/
 
