@@ -4,8 +4,8 @@ let
 
   # Running off fork for now
   miso-src = pkgs.fetchFromGitHub {
-    rev = "f92ab2c5eb067dfd7b37e0f7c7ee565cdf3c04dd";
-    sha256 = "0vih1gya3f94jpgp8jx2l3lxgpgqc8qqbf9qbnr8kjzjw994kcx2";
+    rev = "1dc5b88c16a9ca6a2c22e738bea7c96e56acdacb";
+    sha256 = "0imasiyp81xnp92rxdfpprz3m8la79lsacvchglclvagfwaahqdd";
     owner = "FPtje";
     repo = "miso";
   };
