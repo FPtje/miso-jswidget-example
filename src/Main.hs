@@ -138,7 +138,8 @@ viewCalendar m
 flatpickrIface :: Time.Day -> Interface Action
 flatpickrIface date =
     Interface
-    { passAction = FlatpickrAction
+    { uniqueId   = "topLevelCalendar"
+    , passAction = FlatpickrAction
     , onChanged  = DateChange
     , noop       = NoOp
     , options    =

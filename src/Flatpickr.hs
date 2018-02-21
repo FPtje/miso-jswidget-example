@@ -20,7 +20,6 @@ import           GHCJS.Foreign.Callback ( Callback )
 import qualified GHCJS.Foreign.Callback as JSCallback
 import           GHCJS.Marshal ( ToJSVal(..), fromJSValUnchecked )
 import           GHCJS.Types ( IsJSVal, JSVal )
-import qualified JavaScript.Object as JS
 import qualified Miso
 import           Miso.Html
 import qualified Miso.String as Miso
@@ -47,7 +46,9 @@ initialModel =
 -- embeds it. The @action@ parameter refers to the action type of the parent.
 data Interface action
    = Interface
-     { passAction :: Action action -> action
+     { uniqueId   :: !Miso.MisoString
+       -- ^ Unique identifier for this widget, helps Miso distinguish widgets.
+     , passAction :: Action action -> action
        -- ^ A way to pass @Action@s back to this component.s
      , options    :: !Opts
        -- ^ Options for the widget. See @Opts@.
@@ -60,12 +61,12 @@ data Interface action
 
 -- | The internal actions
 data Action action
-   = OnCreated (action -> IO ()) !JS.Object
+   = OnCreated (action -> IO ()) !Miso.DOMNode
      -- ^ Gets thrown by Miso when the element in which the widget should be
      -- embedded is created (see @viewModel@ below). The function allows us to
      -- create callbacks for the widget's custom events, turn them into
-     -- @action@s and throw them. The @JS.Object@ is DOM element Miso created.
-   | OnDestroyed !JS.Object
+     -- @action@s and throw them. The @Miso.DOMNode@ is DOM element Miso created.
+   | OnDestroyed !Miso.DOMNode
      -- ^ Thrown by Miso when the DOM element is removed from the DOM tree.
    | FlatpickrCreated !FlatpickrWidget
      -- ^ An action we throw when the widget is created. Used to update the
@@ -172,20 +173,19 @@ viewModel iface
         [ -- flatpickr places its widget next to the div below, as opposed to
           -- inside of it, hence the nested div element.
           div_
-          [ Miso.onCreated $ \sink domElement ->
-              passAction iface $ OnCreated sink domElement
-          , Miso.onDestroyed $ passAction iface . OnDestroyed
-          ] []
+            [ Miso.lifeCycleEvents (uniqueId iface) onCreated onDestroyed ]
+            []
         ]
 
     viewInput =
         input_
         [ type_ "text"
         , class_ "flatpickr flatpickr-input"
-        , Miso.onCreated $ \sink domElement ->
-            passAction iface $ OnCreated sink domElement
-        , Miso.onDestroyed $ passAction iface . OnDestroyed
+        , Miso.lifeCycleEvents (uniqueId iface) onCreated onDestroyed
         ] []
+
+    onCreated sink domElement = passAction iface $ OnCreated sink domElement
+    onDestroyed = passAction iface . OnDestroyed
 
 -- | flatpickr has custom events. See:
 -- https://flatpickr.js.org/events/#onchange
@@ -225,7 +225,7 @@ addOnChangeEvent iface sink flatpickr = do
 
 -- Binds flatpickr's widget creating function.
 foreign import javascript unsafe "$r = flatpickr($1, $2);"
-  createWidget :: JS.Object -> JSVal -> IO FlatpickrWidget
+  createWidget :: Miso.DOMNode -> JSVal -> IO FlatpickrWidget
 
 -- flatpickr widgets have a setDate function that take several formats of
 -- dates, one of them being a "Y-m-d" ("%F" in Haskell terms) formatted
