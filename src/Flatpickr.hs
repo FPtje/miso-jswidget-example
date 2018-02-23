@@ -30,17 +30,23 @@ import qualified Miso.String as Miso
 -- during its lifetime (in our case setting the date).
 data Model
    = Model
-     { _mFlatpickr :: !(Maybe FlatpickrWidget)
+     { _mFlatpickr    :: !(Maybe FlatpickrWidget)
+     , _mLifeCycleKey :: !Miso.LifeCycleKey
      }
      deriving (Eq)
 
 
--- | Initial model. The flatpicker reference doesn't exist yet.
-initialModel :: Model
-initialModel =
-    Model
-    { _mFlatpickr = Nothing
-    }
+-- | Initial model. The flatpicker reference doesn't exist yet. The
+-- lifeCycleKey helps Miso distinguish one Flatpickr from the other, or even
+-- another widget.
+initialModel :: IO Model
+initialModel = do
+    lifeCycleKey <- Miso.createLifeCycleKey
+
+    pure Model
+      { _mFlatpickr    = Nothing
+      , _mLifeCycleKey = lifeCycleKey
+      }
 
 -- | The interface defines what this component needs from any parent that
 -- embeds it. The @action@ parameter refers to the action type of the parent.
@@ -161,8 +167,8 @@ updateModel iface action = case action of
 -- | View function. Note that it doesn't actually create or destroy the
 -- widget. It just adds the @Action@s that get called when the actual DOM
 -- elements are created/destroyed.
-viewModel :: Interface action -> Miso.View action
-viewModel iface
+viewModel :: Interface action -> Model -> Miso.View action
+viewModel iface m
     -- flatpickr happens to support both showing a calendar and adding a date
     -- picker to an input field. This example supports both.
     | inline (options iface) = viewInline
@@ -173,7 +179,7 @@ viewModel iface
         [ -- flatpickr places its widget next to the div below, as opposed to
           -- inside of it, hence the nested div element.
           div_
-            [ Miso.lifeCycleEvents (uniqueId iface) onCreated onDestroyed ]
+            [ Miso.lifeCycleEvents (_mLifeCycleKey m) onCreated onDestroyed ]
             []
         ]
 
@@ -181,7 +187,7 @@ viewModel iface
         input_
         [ type_ "text"
         , class_ "flatpickr flatpickr-input"
-        , Miso.lifeCycleEvents (uniqueId iface) onCreated onDestroyed
+        , Miso.lifeCycleEvents (_mLifeCycleKey m) onCreated onDestroyed
         ] []
 
     onCreated sink domElement = passAction iface $ OnCreated sink domElement

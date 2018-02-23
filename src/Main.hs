@@ -45,16 +45,11 @@ data Action
 
 main :: IO ()
 main = do
-    -- Initialise starting date to today
-    curTime <- Time.getCurrentTime
-    timeZone <- Time.getCurrentTimeZone
-
-    let day :: Time.Day
-        (LocalTime day _timeOfDay) = Time.utcToLocalTime timeZone curTime
+    initModel <- initialModel
 
     Miso.startApp App
       { initialAction = NoOp
-      , model         = initialModel day
+      , model         = initModel
       , update        = Miso.fromTransition . updateModel
       , view          = viewModel
       , events        = Miso.defaultEvents
@@ -62,13 +57,22 @@ main = do
       , mountPoint    = Nothing
       }
 
-initialModel :: Time.Day -> Model
-initialModel day =
-    Model
-    { _mFlatpickr        = Flatpickr.initialModel
-    , _mFlatpickrVisible = True
-    , _mDate             = day
-    }
+initialModel :: IO Model
+initialModel = do
+    -- Initialise starting date to today
+    curTime <- Time.getCurrentTime
+    timeZone <- Time.getCurrentTimeZone
+
+    let day :: Time.Day
+        (LocalTime day _timeOfDay) = Time.utcToLocalTime timeZone curTime
+
+    flatPickrModel <- Flatpickr.initialModel
+
+    pure Model
+      { _mFlatpickr        = flatPickrModel
+      , _mFlatpickrVisible = True
+      , _mDate             = day
+      }
 
 updateModel :: Action -> Transition Action Model ()
 updateModel action = case action of
@@ -129,7 +133,7 @@ viewCalendar :: Model -> [View Action]
 viewCalendar m
     | not (m ^. mFlatpickrVisible) = []
     | otherwise =
-      [ Flatpickr.viewModel $ flatpickrIface $ m ^. mDate
+      [ Flatpickr.viewModel (flatpickrIface $ m ^. mDate) (m ^. mFlatpickr)
       ]
 
 -- | The Flatpickr component needs to know some things about the parent that
