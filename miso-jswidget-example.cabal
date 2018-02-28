@@ -22,6 +22,7 @@ executable main
     ghcjs-base,
     lens,
     miso,
+    stm,
     time
 
   default-language:

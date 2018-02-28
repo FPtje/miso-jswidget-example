@@ -8,7 +8,15 @@
 --
 -- For more info on components, see
 -- https://github.com/FPtje/miso-component-example
-module Flatpickr where
+module Flatpickr
+  ( Model
+  , initialModel
+  , Interface(..)
+  , Action(..)
+  , Opts(..)
+  , updateModel
+  , viewModel
+  ) where
 
 -- Imports are explicit for the sake of documentation.
 import           Control.Lens ( (.=), makeLenses, use )
@@ -30,23 +38,18 @@ import qualified Miso.String as Miso
 -- during its lifetime (in our case setting the date).
 data Model
    = Model
-     { _mFlatpickr    :: !(Maybe FlatpickrWidget)
-     , _mLifeCycleKey :: !Miso.LifeCycleKey
+     { _mFlatpickr :: !(Maybe FlatpickrWidget)
      }
      deriving (Eq)
-
 
 -- | Initial model. The flatpicker reference doesn't exist yet. The
 -- lifeCycleKey helps Miso distinguish one Flatpickr from the other, or even
 -- another widget.
-initialModel :: IO Model
-initialModel = do
-    lifeCycleKey <- Miso.createLifeCycleKey
-
-    pure Model
-      { _mFlatpickr    = Nothing
-      , _mLifeCycleKey = lifeCycleKey
-      }
+initialModel :: Model
+initialModel =
+    Model
+    { _mFlatpickr = Nothing
+    }
 
 -- | The interface defines what this component needs from any parent that
 -- embeds it. The @action@ parameter refers to the action type of the parent.
@@ -55,24 +58,22 @@ data Interface action
      { uniqueId   :: !Miso.MisoString
        -- ^ Unique identifier for this widget, helps Miso distinguish widgets.
      , passAction :: Action action -> action
-       -- ^ A way to pass @Action@s back to this component.s
+       -- ^ A way to pass @Action@s back to this component.
      , options    :: !Opts
        -- ^ Options for the widget. See @Opts@.
      , onChanged  :: Time.Day -> action
        -- ^ An action that this component promises to throw when the widget's
        -- date changes.
      , noop       :: !action
-       -- A convenience "No Operation" action.
+       -- ^ A convenience "No Operation" action.
      }
 
 -- | The internal actions
 data Action action
-   = OnCreated (action -> IO ()) !Miso.DOMNode
+   = OnCreated
      -- ^ Gets thrown by Miso when the element in which the widget should be
-     -- embedded is created (see @viewModel@ below). The function allows us to
-     -- create callbacks for the widget's custom events, turn them into
-     -- @action@s and throw them. The @Miso.DOMNode@ is DOM element Miso created.
-   | OnDestroyed !Miso.DOMNode
+     -- embedded is created (see @viewModel@ below).
+   | OnDestroyed
      -- ^ Thrown by Miso when the DOM element is removed from the DOM tree.
    | FlatpickrCreated !FlatpickrWidget
      -- ^ An action we throw when the widget is created. Used to update the
@@ -120,12 +121,14 @@ makeLenses ''Model
 -- | Handles the @Action@s defined above.
 updateModel
     :: Interface action
+    -> (action -> IO ())
     -> Action action
     -> Miso.Transition action Model ()
-updateModel iface action = case action of
-    OnCreated sink domElement -> Miso.scheduleIO $ do
+updateModel iface sink action = case action of
+    OnCreated -> Miso.scheduleIO $ do
       -- Turn the options into a Javascript value
       jsOpts <- toJSVal $ options iface
+      domElement <- getElementById (uniqueId iface)
       -- Call the FFI function to create the widget
       flatpickr <- createWidget domElement jsOpts
       -- Add our events, in this case just one event
@@ -134,7 +137,7 @@ updateModel iface action = case action of
       -- Throw the FlatpickrCreated, so we can store the widget in our model
       pure $ passAction iface $ FlatpickrCreated flatpickr
 
-    OnDestroyed _ -> do
+    OnDestroyed -> do
       maybeFlatpickr <- use mFlatpickr
       mFlatpickr .= Nothing
 
@@ -167,8 +170,8 @@ updateModel iface action = case action of
 -- | View function. Note that it doesn't actually create or destroy the
 -- widget. It just adds the @Action@s that get called when the actual DOM
 -- elements are created/destroyed.
-viewModel :: Interface action -> Model -> Miso.View action
-viewModel iface m
+viewModel :: Interface action -> Miso.View action
+viewModel iface
     -- flatpickr happens to support both showing a calendar and adding a date
     -- picker to an input field. This example supports both.
     | inline (options iface) = viewInline
@@ -178,20 +181,24 @@ viewModel iface m
         div_ [ ]
         [ -- flatpickr places its widget next to the div below, as opposed to
           -- inside of it, hence the nested div element.
-          div_
-            [ Miso.lifeCycleEvents (_mLifeCycleKey m) onCreated onDestroyed ]
+          nodeHtmlKeyed "div" (Miso.toKey $ uniqueId iface)
+            [ -- id is important, since getElementById is used in the update function
+              id_ $ uniqueId iface
+            , Miso.onCreated $ passAction iface OnCreated
+            , Miso.onDestroyed $ passAction iface OnDestroyed
+            ]
             []
         ]
 
     viewInput =
-        input_
-        [ type_ "text"
+        nodeHtmlKeyed "input" (Miso.toKey $ uniqueId iface)
+        [ -- id is important, since getElementById is used in the update function
+          id_ $ uniqueId iface
+        , type_ "text"
         , class_ "flatpickr flatpickr-input"
-        , Miso.lifeCycleEvents (_mLifeCycleKey m) onCreated onDestroyed
+        , Miso.onCreated $ passAction iface OnCreated
+        , Miso.onDestroyed $ passAction iface OnDestroyed
         ] []
-
-    onCreated sink domElement = passAction iface $ OnCreated sink domElement
-    onDestroyed = passAction iface . OnDestroyed
 
 -- | flatpickr has custom events. See:
 -- https://flatpickr.js.org/events/#onchange
@@ -231,7 +238,7 @@ addOnChangeEvent iface sink flatpickr = do
 
 -- Binds flatpickr's widget creating function.
 foreign import javascript unsafe "$r = flatpickr($1, $2);"
-  createWidget :: Miso.DOMNode -> JSVal -> IO FlatpickrWidget
+  createWidget :: JSVal -> JSVal -> IO FlatpickrWidget
 
 -- flatpickr widgets have a setDate function that take several formats of
 -- dates, one of them being a "Y-m-d" ("%F" in Haskell terms) formatted
@@ -257,3 +264,6 @@ foreign import javascript unsafe
 -- Destroys the flatpickr widget.
 foreign import javascript unsafe "$1.destroy();"
   destroyFlatpickr :: FlatpickrWidget -> IO ()
+
+foreign import javascript unsafe "$r = document.getElementById($1);"
+  getElementById :: Miso.MisoString -> IO JSVal

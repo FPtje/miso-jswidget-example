@@ -6,7 +6,11 @@
 -- described in this example: https://github.com/FPtje/miso-component-example
 module Main where
 
+import           Control.Concurrent ( forkIO )
+import qualified Control.Concurrent.STM.TChan as STM
 import           Control.Lens ( (^.), (.=), (%=), makeLenses, zoom, use )
+import           Control.Monad ( forever, void )
+import qualified Control.Monad.STM as STM
 import           Data.Monoid ( (<>) )
 import qualified Data.Time.Calendar as Time
 import qualified Data.Time.Clock as Time
@@ -46,16 +50,27 @@ data Action
 main :: IO ()
 main = do
     initModel <- initialModel
+    actionChannel <- STM.newTChanIO
 
     Miso.startApp App
       { initialAction = NoOp
       , model         = initModel
-      , update        = Miso.fromTransition . updateModel
+      , update        = Miso.fromTransition . updateModel actionChannel
       , view          = viewModel
       , events        = Miso.defaultEvents
-      , subs          = []
+      , subs          = [sinkSub actionChannel]
       , mountPoint    = Nothing
       }
+
+-- | Listens to some channel and throws everything it gets in the sink,
+-- causing those actions to end up in the update function. The flatpickr
+-- component needs this sink to add event listeners to the widget, for it
+-- needs some way to get an action back into the update function when events
+-- are fired.
+sinkSub :: STM.TChan action -> Sub action model
+sinkSub actionChannel _getModel sink = void $ forkIO $ forever $ do
+    action <- STM.atomically $ STM.readTChan actionChannel
+    sink action
 
 initialModel :: IO Model
 initialModel = do
@@ -66,21 +81,20 @@ initialModel = do
     let day :: Time.Day
         (LocalTime day _timeOfDay) = Time.utcToLocalTime timeZone curTime
 
-    flatPickrModel <- Flatpickr.initialModel
-
     pure Model
-      { _mFlatpickr        = flatPickrModel
+      { _mFlatpickr        = Flatpickr.initialModel
       , _mFlatpickrVisible = True
       , _mDate             = day
       }
 
-updateModel :: Action -> Transition Action Model ()
-updateModel action = case action of
+updateModel :: STM.TChan Action -> Action -> Transition Action Model ()
+updateModel actionChannel action = case action of
     NoOp -> pure ()
 
     FlatpickrAction act -> do
       date <- use mDate
-      zoom mFlatpickr $ Flatpickr.updateModel (flatpickrIface date) act
+      zoom mFlatpickr $
+        Flatpickr.updateModel (flatpickrIface date) sink act
 
     ToggleCalendarVisibility ->
       mFlatpickrVisible %= not
@@ -91,7 +105,10 @@ updateModel action = case action of
 
       -- Update the widget with the new date
       zoom mFlatpickr $
-        Flatpickr.updateModel (flatpickrIface date) (Flatpickr.SetDate date)
+        Flatpickr.updateModel
+          (flatpickrIface date)
+          sink
+          (Flatpickr.SetDate date)
 
 
     NextDay -> do
@@ -100,10 +117,15 @@ updateModel action = case action of
 
       -- Update the widget with the new date
       zoom mFlatpickr $
-        Flatpickr.updateModel (flatpickrIface date) (Flatpickr.SetDate date)
+        Flatpickr.updateModel
+          (flatpickrIface date)
+          sink
+          (Flatpickr.SetDate date)
 
     DateChange day ->
       mDate .= day
+  where
+    sink = STM.atomically . STM.writeTChan actionChannel
 
 viewModel :: Model -> View Action
 viewModel m =
@@ -133,7 +155,7 @@ viewCalendar :: Model -> [View Action]
 viewCalendar m
     | not (m ^. mFlatpickrVisible) = []
     | otherwise =
-      [ Flatpickr.viewModel (flatpickrIface $ m ^. mDate) (m ^. mFlatpickr)
+      [ Flatpickr.viewModel (flatpickrIface $ m ^. mDate)
       ]
 
 -- | The Flatpickr component needs to know some things about the parent that
@@ -142,11 +164,11 @@ viewCalendar m
 flatpickrIface :: Time.Day -> Interface Action
 flatpickrIface date =
     Interface
-    { uniqueId   = "topLevelCalendar"
-    , passAction = FlatpickrAction
-    , onChanged  = DateChange
-    , noop       = NoOp
-    , options    =
+    { uniqueId      = "topLevelCalendar"
+    , passAction    = FlatpickrAction
+    , onChanged     = DateChange
+    , noop          = NoOp
+    , options       =
         Opts
         { weekNumbers = True
         , inline      = True
