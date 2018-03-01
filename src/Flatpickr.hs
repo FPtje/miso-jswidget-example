@@ -19,7 +19,7 @@ module Flatpickr
   ) where
 
 -- Imports are explicit for the sake of documentation.
-import           Control.Lens ( (.=), makeLenses, use )
+import           Control.Lens ( (.=), (^.), makeLenses, use )
 import           Control.Monad ( forM_ )
 import qualified Data.Time.Calendar as Time
 import qualified Data.Time.Format as Time
@@ -39,16 +39,19 @@ import qualified Miso.String as Miso
 data Model
    = Model
      { _mFlatpickr :: !(Maybe FlatpickrWidget)
+     , _mOptions   :: !Opts
      }
      deriving (Eq)
 
 -- | Initial model. The flatpicker reference doesn't exist yet. The
 -- lifeCycleKey helps Miso distinguish one Flatpickr from the other, or even
 -- another widget.
-initialModel :: Model
-initialModel =
+initialModel :: Opts -> Model
+initialModel opts =
     Model
     { _mFlatpickr = Nothing
+    , _mOptions   = opts
+      -- ^ Options for the widget. See @Opts@.
     }
 
 -- | The interface defines what this component needs from any parent that
@@ -57,10 +60,8 @@ data Interface action
    = Interface
      { uniqueId   :: !Miso.MisoString
        -- ^ Unique identifier for this widget, helps Miso distinguish widgets.
-     , passAction :: Action action -> action
+     , passAction :: Action -> action
        -- ^ A way to pass @Action@s back to this component.
-     , options    :: !Opts
-       -- ^ Options for the widget. See @Opts@.
      , onChanged  :: Time.Day -> action
        -- ^ An action that this component promises to throw when the widget's
        -- date changes.
@@ -69,7 +70,7 @@ data Interface action
      }
 
 -- | The internal actions
-data Action action
+data Action
    = OnCreated
      -- ^ Gets thrown by Miso when the element in which the widget should be
      -- embedded is created (see @viewModel@ below).
@@ -90,7 +91,7 @@ data Opts
      { weekNumbers :: !Bool
      , inline      :: !Bool
      , defaultDate :: !Miso.MisoString
-     } deriving (Generic)
+     } deriving (Eq, Generic)
 
 -- We can just derive ToJSVal since the Opts only contains types that can be
 -- marshalled to JS. Converting @Opts@ to JSVal will create a javascript
@@ -122,20 +123,22 @@ makeLenses ''Model
 updateModel
     :: Interface action
     -> (action -> IO ())
-    -> Action action
+    -> Action
     -> Miso.Transition action Model ()
 updateModel iface sink action = case action of
-    OnCreated -> Miso.scheduleIO $ do
-      -- Turn the options into a Javascript value
-      jsOpts <- toJSVal $ options iface
-      domElement <- getElementById (uniqueId iface)
-      -- Call the FFI function to create the widget
-      flatpickr <- createWidget domElement jsOpts
-      -- Add our events, in this case just one event
-      addOnChangeEvent iface sink flatpickr
+    OnCreated -> do
+      opts <- use mOptions
+      Miso.scheduleIO $ do
+        -- Turn the options into a Javascript value
+        jsOpts <- toJSVal opts
+        domElement <- getElementById (uniqueId iface)
+        -- Call the FFI function to create the widget
+        flatpickr <- createWidget domElement jsOpts
+        -- Add our events, in this case just one event
+        addOnChangeEvent iface sink flatpickr
 
-      -- Throw the FlatpickrCreated, so we can store the widget in our model
-      pure $ passAction iface $ FlatpickrCreated flatpickr
+        -- Throw the FlatpickrCreated, so we can store the widget in our model
+        pure $ passAction iface $ FlatpickrCreated flatpickr
 
     OnDestroyed -> do
       maybeFlatpickr <- use mFlatpickr
@@ -170,11 +173,11 @@ updateModel iface sink action = case action of
 -- | View function. Note that it doesn't actually create or destroy the
 -- widget. It just adds the @Action@s that get called when the actual DOM
 -- elements are created/destroyed.
-viewModel :: Interface action -> Miso.View action
-viewModel iface
+viewModel :: Interface action -> Model -> Miso.View action
+viewModel iface m
     -- flatpickr happens to support both showing a calendar and adding a date
     -- picker to an input field. This example supports both.
-    | inline (options iface) = viewInline
+    | inline (m ^. mOptions) = viewInline
     | otherwise = viewInput
   where
     viewInline =
@@ -195,7 +198,6 @@ viewModel iface
         [ -- id is important, since getElementById is used in the update function
           id_ $ uniqueId iface
         , type_ "text"
-        , class_ "flatpickr flatpickr-input"
         , Miso.onCreated $ passAction iface OnCreated
         , Miso.onDestroyed $ passAction iface OnDestroyed
         ] []

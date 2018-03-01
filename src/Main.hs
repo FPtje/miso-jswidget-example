@@ -38,7 +38,7 @@ data Model
 makeLenses ''Model
 
 data Action
-  = FlatpickrAction !(Flatpickr.Action Action)
+  = FlatpickrAction !Flatpickr.Action
     -- ^ Passes Actions to the Flatpickr widget component.
   | ToggleCalendarVisibility
   | PreviousDay
@@ -82,7 +82,7 @@ initialModel = do
         (LocalTime day _timeOfDay) = Time.utcToLocalTime timeZone curTime
 
     pure Model
-      { _mFlatpickr        = Flatpickr.initialModel
+      { _mFlatpickr        = Flatpickr.initialModel $ flatpickrOptions day
       , _mFlatpickrVisible = True
       , _mDate             = day
       }
@@ -91,10 +91,9 @@ updateModel :: STM.TChan Action -> Action -> Transition Action Model ()
 updateModel actionChannel action = case action of
     NoOp -> pure ()
 
-    FlatpickrAction act -> do
-      date <- use mDate
+    FlatpickrAction act ->
       zoom mFlatpickr $
-        Flatpickr.updateModel (flatpickrIface date) sink act
+        Flatpickr.updateModel flatpickrIface sink act
 
     ToggleCalendarVisibility ->
       mFlatpickrVisible %= not
@@ -106,7 +105,7 @@ updateModel actionChannel action = case action of
       -- Update the widget with the new date
       zoom mFlatpickr $
         Flatpickr.updateModel
-          (flatpickrIface date)
+          flatpickrIface
           sink
           (Flatpickr.SetDate date)
 
@@ -118,7 +117,7 @@ updateModel actionChannel action = case action of
       -- Update the widget with the new date
       zoom mFlatpickr $
         Flatpickr.updateModel
-          (flatpickrIface date)
+          flatpickrIface
           sink
           (Flatpickr.SetDate date)
 
@@ -155,25 +154,27 @@ viewCalendar :: Model -> [View Action]
 viewCalendar m
     | not (m ^. mFlatpickrVisible) = []
     | otherwise =
-      [ Flatpickr.viewModel (flatpickrIface $ m ^. mDate)
+      [ Flatpickr.viewModel flatpickrIface $ m ^. mFlatpickr
       ]
+
+flatpickrOptions :: Time.Day -> Opts
+flatpickrOptions date =
+    Opts
+    { weekNumbers = True
+    , inline      = True
+    , defaultDate =
+        Miso.toMisoString $
+        Time.formatTime Time.defaultTimeLocale "%F" date
+    }
 
 -- | The Flatpickr component needs to know some things about the parent that
 -- includes it. With the parent being this module, that information has to be
 -- provided here.
-flatpickrIface :: Time.Day -> Interface Action
-flatpickrIface date =
+flatpickrIface :: Interface Action
+flatpickrIface =
     Interface
     { uniqueId      = "topLevelCalendar"
     , passAction    = FlatpickrAction
     , onChanged     = DateChange
     , noop          = NoOp
-    , options       =
-        Opts
-        { weekNumbers = True
-        , inline      = True
-        , defaultDate =
-            Miso.toMisoString $
-            Time.formatTime Time.defaultTimeLocale "%F" date
-        }
     }
