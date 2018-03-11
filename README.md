@@ -4,8 +4,7 @@
 </p>
 
 ## Note:
-Currently running off a fork of Miso, until the methods in this example have been fleshed out. Follow its progress here:
-https://github.com/dmjio/miso/pull/362
+🎉 Now working with the latest version of Miso! 🎉
 
 Also currently incompatible with Miso's isomorphism feature.
 
@@ -21,7 +20,7 @@ This example shows how to deeply integrate a javascript widget into your [Miso](
 - this component can be re-used and placed anywhere in your application, following the [components](https://github.com/FPtje/miso-component-example) pattern;
 - the state of your Miso `Model` is synced with the state of the widget, and the other way around.
 
-This example embeds [flatpickr](https://flatpickr.js.org/), a date picker and calendar widget. 
+This example embeds [flatpickr](https://flatpickr.js.org/), a date picker and calendar widget.
 
 ## The example explained
 The example consists of two Haskell files: [`Main.hs`](src/Main.hs) and [`Flatpickr.hs`](src/Flatpickr.hs). `Main.hs` contains a pretty standard Miso app, with a `Model`, some `Action`s, `viewModel` function and is the parent of a `Flatpickr` component. `Main.hs` is not aware of any Javascript shenanigans.

@@ -184,6 +184,10 @@ viewModel iface m
         div_ [ ]
         [ -- flatpickr places its widget next to the div below, as opposed to
           -- inside of it, hence the nested div element.
+
+          -- The key here is important! Every node with either `onCreated` or
+          -- `onDestroyed` /must/ have a unique key, otherwise the life cycle
+          -- events will not always be called.
           nodeHtmlKeyed "div" (Miso.toKey $ uniqueId iface)
             [ -- id is important, since getElementById is used in the update function
               id_ $ uniqueId iface
