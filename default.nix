@@ -2,7 +2,6 @@
 let
   inherit (pkgs.haskell.packages) ghcjsHEAD;
 
-  # Running off fork for now
   miso-src = pkgs.fetchFromGitHub {
     rev = "382041baf3ae58a02405743e94e313e48c8bf49c";
     sha256 = "1jwk8yia0gwmymrw45yra5xc0d2mcjd235gwrljvkwaa1nfrgkmv";

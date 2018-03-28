@@ -67,6 +67,8 @@ data Interface action
        -- date changes.
      , noop       :: !action
        -- ^ A convenience "No Operation" action.
+     , initialDate :: !Time.Day
+       -- ^ The date to set when the widget is created.
      }
 
 -- | The internal actions
@@ -90,7 +92,6 @@ data Opts
    = Opts
      { weekNumbers :: !Bool
      , inline      :: !Bool
-     , defaultDate :: !Miso.MisoString
      } deriving (Eq, Generic)
 
 -- We can just derive ToJSVal since the Opts only contains types that can be
@@ -135,6 +136,11 @@ updateModel iface action = case action of
         flatpickr <- createWidget domElement jsOpts
         -- Add our events, in this case just one event
         addOnChangeEvent iface sink flatpickr
+
+        -- Set the initial date
+        setDate flatpickr $
+          Miso.toMisoString $
+          Time.formatTime Time.defaultTimeLocale "%F" $ initialDate iface
 
         -- Throw the FlatpickrCreated, so we can store the widget in our model
         sink $ passAction iface $ FlatpickrCreated flatpickr
