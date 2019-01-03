@@ -1,17 +1,8 @@
-{ pkgs ? import <nixpkgs> {} }:
+{ pkgs ? import ./nixpkgs.nix }:
 let
-  inherit (pkgs.haskell.packages) ghcjsHEAD;
+  inherit (pkgs.haskell.packages) ghcjs;
 
-  miso-src = pkgs.fetchFromGitHub {
-    rev = "382041baf3ae58a02405743e94e313e48c8bf49c";
-    sha256 = "1jwk8yia0gwmymrw45yra5xc0d2mcjd235gwrljvkwaa1nfrgkmv";
-    owner = "dmjio";
-    repo = "miso";
-  };
-
-  miso-ghcjs = ghcjsHEAD.callCabal2nix "miso" miso-src {};
-
-  drv = ghcjsHEAD.callPackage ./pkg.nix { miso = miso-ghcjs; };
+  drv = ghcjs.callCabal2nix "miso-jswidget-example" ./. {};
 
   final = pkgs.runCommand "miso-jswidget-example" {} ''
     mkdir $out
